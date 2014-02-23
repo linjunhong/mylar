@@ -263,7 +263,7 @@ def upcoming_update(ComicID, ComicName, IssueNumber, IssueDate, forcecheck=None,
         else:
             myDB.upsert("issues", values, control)
 
-        if issuechk['Status'] == 'Downloaded' or issuechk['Status'] == 'Archived': 
+        if issuechk['Status'] == 'Downloaded' or issuechk['Status'] == 'Archived' or issuechk['Status'] == 'Snatched': 
             logger.fdebug('updating Pull-list to reflect status.')
             downstats = {"Status":  issuechk['Status'],
                          "ComicID": issuechk['ComicID']}
@@ -645,6 +645,7 @@ def forceRescan(ComicID,archive=None):
             fcnew = shlex.split(str(temploc))
             fcn = len(fcnew)
             n = 0
+            reann = None
             while (n < anncnt):
                 som = 0
                 try:
@@ -705,7 +706,11 @@ def forceRescan(ComicID,archive=None):
             writeit = True
             if mylar.ANNUALS_ON:
                 if 'annual' in temploc.lower():
-                    iss_id = reann['IssueID']
+                    if reann is None:
+                        logger.fdebug('Annual present in location, but series does not have any annuals attached to it - Ignoring')
+                        writeit = False
+                    else:
+                        iss_id = reann['IssueID']
                 else:
                     iss_id = reiss['IssueID']
             else:
@@ -750,7 +755,7 @@ def forceRescan(ComicID,archive=None):
     else:
         for chk in chkthis:
             old_status = chk['Status']
-            logger.fdebug('old_status:' + str(old_status))
+            #logger.fdebug('old_status:' + str(old_status))
             if old_status == "Skipped":
                 if mylar.AUTOWANT_ALL:
                     issStatus = "Wanted"
@@ -769,7 +774,7 @@ def forceRescan(ComicID,archive=None):
             else:
                 issStatus = "Skipped"
 
-            logger.fdebug("new status: " + str(issStatus))
+            #logger.fdebug("new status: " + str(issStatus))
 
             update_iss.append({"IssueID": chk['IssueID'],
                                "Status":  issStatus})

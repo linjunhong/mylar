@@ -57,6 +57,8 @@ def listFiles(dir,watchcomic,AlternateSearch=None,manual=None,sarc=None):
                '\@']
 
     issue_exceptions = ['AU',
+                      '.INH',
+                      '.NOW',
                       'AI', 
                       'A',
                       'B',
@@ -142,60 +144,78 @@ def listFiles(dir,watchcomic,AlternateSearch=None,manual=None,sarc=None):
         nonocount = 0
         charpos = 0
         detneg = "no"
-        for nono in not_these:
-            if nono in subname:
-                subcnt = subname.count(nono)
-                charpos = indices(subname,nono) # will return a list of char positions in subname
-                #print "charpos: " + str(charpos)
-                if nono == '-':
-                    i=0
-                    while (i < len(charpos)):
-                        for i,j in enumerate(charpos):
-                            #print i,j
-                            if subname[j+1:j+2].isdigit():
-                                logger.fdebug('possible negative issue detected.')
-                                nonocount = nonocount + subcnt - 1
-                                detneg = "yes"                                
-                            if '-' in watchcomic and i < len(watchcomic):
-                                logger.fdebug('- appears in series title.')
-                        i+=1
-                    if detneg == "no": 
-                        subname = re.sub(str(nono), ' ', subname)
-                        nonocount = nonocount + subcnt
+        leavehyphen = False
+        should_restart = True
+        while should_restart:
+            should_restart = False
+            for nono in not_these:
+                if nono in subname:
+                    subcnt = subname.count(nono)
+                    charpos = indices(subname,nono) # will return a list of char positions in subname
+                    #print "charpos: " + str(charpos)
+                    if nono == '-':
+                        i=0
+                        while (i < len(charpos)):
+                            for i,j in enumerate(charpos):
+                                if j+2 > len(subname): 
+                                    sublimit = subname[j+1:]
+                                else:
+                                    sublimit = subname[j+1:j+2]
+                                if sublimit.isdigit():
+                                    logger.fdebug('possible negative issue detected.')
+                                    nonocount = nonocount + subcnt - 1
+                                    detneg = "yes"                                
+                                elif '-' in watchcomic and i < len(watchcomic):
+                                    logger.fdebug('- appears in series title.')
+                                    logger.fdebug('up to - :' + subname[:j+1].replace('-', ' '))
+                                    logger.fdebug('after -  :' + subname[j+1:])
+                                    subname = subname[:j+1].replace('-', ' ') + subname[j+1:]
+                                    logger.fdebug('new subname is : ' +  str(subname))
+                                    should_restart = True
+                                    leavehyphen = True
+                            i+=1
+                        if detneg == "no" or leavehyphen == False: 
+                            subname = re.sub(str(nono), ' ', subname)
+                            nonocount = nonocount + subcnt
                 #logger.fdebug(str(nono) + " detected " + str(subcnt) + " times.")
                 # segment '.' having a . by itself will denote the entire string which we don't want
-                elif nono == '.':
-                    x = 0
-                    fndit = 0
-                    dcspace = 0
-                    while x < subcnt:
-                        fndit = subname.find(nono, fndit)
-                        if subname[fndit-1:fndit].isdigit() and subname[fndit+1:fndit+2].isdigit():
-                            logger.fdebug('decimal issue detected.')
-                            dcspace+=1
-                        x+=1
-                    if dcspace == 1:
-                        nonocount = nonocount + subcnt + dcspace                    
+                    elif nono == '.':
+                        x = 0
+                        fndit = 0
+                        dcspace = 0
+                        while x < subcnt:
+                            fndit = subname.find(nono, fndit)
+                            if subname[fndit-1:fndit].isdigit() and subname[fndit+1:fndit+2].isdigit():
+                                logger.fdebug('decimal issue detected.')
+                                dcspace+=1
+                            x+=1
+                        if dcspace == 1:
+                            nonocount = nonocount + subcnt + dcspace                    
+                        else:
+                            subname = re.sub('\.', ' ', subname)
+                            nonocount = nonocount + subcnt - 1 #(remove the extension from the length)
                     else:
-                        subname = re.sub('\.', ' ', subname)
-                        nonocount = nonocount + subcnt - 1 #(remove the extension from the length)
-                else:
-                    #this is new - if it's a symbol seperated by a space on each side it drags in an extra char.
-                    x = 0
-                    fndit = 0
-                    blspc = 0
-                    while x < subcnt:
-                        fndit = subname.find(nono, fndit)
-                        #print ("space before check: " + str(subname[fndit-1:fndit]))
-                        #print ("space after check: " + str(subname[fndit+1:fndit+2]))
-                        if subname[fndit-1:fndit] == ' ' and subname[fndit+1:fndit+2] == ' ':
-                            logger.fdebug('blankspace detected before and after ' + str(nono))
-                            blspc+=1
-                        x+=1
-                    subname = re.sub(str(nono), ' ', subname)
-                    nonocount = nonocount + subcnt + blspc
+                        #this is new - if it's a symbol seperated by a space on each side it drags in an extra char.
+                        x = 0
+                        fndit = 0
+                        blspc = 0
+                        while x < subcnt:
+                            fndit = subname.find(nono, fndit)
+                            #print ("space before check: " + str(subname[fndit-1:fndit]))
+                            #print ("space after check: " + str(subname[fndit+1:fndit+2]))
+                            if subname[fndit-1:fndit] == ' ' and subname[fndit+1:fndit+2] == ' ':
+                                logger.fdebug('blankspace detected before and after ' + str(nono))
+                                blspc+=1
+                            x+=1
+                        subname = re.sub(str(nono), ' ', subname)
+                        nonocount = nonocount + subcnt + blspc
         #subname = re.sub('[\_\#\,\/\:\;\.\-\!\$\%\+\'\?\@]',' ', subname)
-        modwatchcomic = re.sub('[\_\#\,\/\:\;\.\-\!\$\%\'\?\@]', ' ', u_watchcomic)
+
+        modwatchcomic = re.sub('[\_\#\,\/\:\;\.\!\$\%\'\?\@\-]', ' ', u_watchcomic)
+        #if leavehyphen == False:
+        #    logger.fdebug('removing hyphen for comparisons')
+        #    modwatchcomic = re.sub('-', ' ', modwatchcomic)
+        #    subname = re.sub('-', ' ', subname)
         detectand = False
         detectthe = False
         modwatchcomic = re.sub('\&', ' and ', modwatchcomic)
@@ -320,7 +340,7 @@ def listFiles(dir,watchcomic,AlternateSearch=None,manual=None,sarc=None):
             #    logger.fdebug("removed title from name - is now : " + str(justthedigits))
 
             justthedigits = justthedigits_1.split(' ', 1)[0]
-
+            
             digitsvalid = "false"
 
             for jdc in list(justthedigits):
@@ -354,8 +374,14 @@ def listFiles(dir,watchcomic,AlternateSearch=None,manual=None,sarc=None):
                         logger.fdebug('DECIMAL ISSUE DETECTED [' + justthedigits + ']')
                 else:
                     for issexcept in issue_exceptions:
+                        decimalexcept = False
+                        if '.' in issexcept:
+                            decimalexcept = True
+                            issexcept = issexcept[1:] #remove the '.' from comparison...
                         if issexcept.lower() in poss_alpha.lower() and len(poss_alpha) <= len(issexcept):
-                            justthedigits += poss_alpha
+                            if decimalexcept:
+                                issexcept = '.' + issexcept
+                            justthedigits += issexcept #poss_alpha
                             logger.fdebug('ALPHANUMERIC EXCEPTION. COMBINING : [' + justthedigits + ']')
                             digitsvalid = "true"
                             break
@@ -366,16 +392,31 @@ def listFiles(dir,watchcomic,AlternateSearch=None,manual=None,sarc=None):
 
             #if the issue has an alphanumeric (issue_exceptions, join it and push it through)
             logger.fdebug('JUSTTHEDIGITS [' + justthedigits + ']' )
-            if justthedigits.isdigit():
-                digitsvalid = "true"
+            if digitsvalid == "true":
+                pass
             else:
-                if '.' in justthedigits:
-                    tmpdec = justthedigits.find('.')
-                    b4dec = justthedigits[:tmpdec]
-                    a4dec = justthedigits[tmpdec+1:]
-                    if a4dec.isdigit() and b4dec.isdigit():
-                        logger.fdebug('DECIMAL ISSUE DETECTED')
-                        digitsvalid = "true"
+                if justthedigits.isdigit():
+                    digitsvalid = "true"
+                else:
+                    if '.' in justthedigits:
+                        tmpdec = justthedigits.find('.')
+                        b4dec = justthedigits[:tmpdec]
+                        a4dec = justthedigits[tmpdec+1:]
+                        if a4dec.isdigit() and b4dec.isdigit():
+                            logger.fdebug('DECIMAL ISSUE DETECTED')
+                            digitsvalid = "true"
+                    else:
+                        try:
+                            x = float(justthedigits)
+                            #validity check
+                            if x < 0:
+                                logger.info("I've encountered a negative issue #: " + str(justthedigits) + ". Trying to accomodate.")
+                                digitsvalid = "true"
+                            else: raise ValueError
+                        except ValueError, e:
+                                logger.info('Cannot determine issue number from given issue #: ' + str(justthedigits))
+
+
 #                else:
 #                    logger.fdebug('NO DECIMALS DETECTED')
 #                    digitsvalid = "false"
@@ -505,6 +546,10 @@ def listFiles(dir,watchcomic,AlternateSearch=None,manual=None,sarc=None):
 
                 if yearmatch == "false": continue
 
+                if 'annual' in subname.lower():
+                    subname = re.sub('annual', '', subname.lower())
+                    subname = re.sub('\s+', ' ', subname)
+
                 #tmpitem = item[:jtd_len]
                 # if it's an alphanumeric with a space, rejoin, so we can remove it cleanly just below this.
                 substring_removal = None
@@ -567,9 +612,9 @@ def listFiles(dir,watchcomic,AlternateSearch=None,manual=None,sarc=None):
         else:
             pass
             #print ("directory found - ignoring")
+
     logger.fdebug('you have a total of ' + str(comiccnt) + ' ' + watchcomic + ' comics')
     watchmatch['comiccount'] = comiccnt
-    #print watchmatch
     return watchmatch
 
 def validateAndCreateDirectory(dir, create=False):
